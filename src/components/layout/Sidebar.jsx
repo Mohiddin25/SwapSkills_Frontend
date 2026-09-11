@@ -5,6 +5,7 @@ import {
   Users,
   GitPullRequest,
   CalendarCheck,
+  MessageSquare,
   Clock,
   User,
   Settings,
@@ -44,6 +45,7 @@ export function Sidebar() {
       icon: CalendarCheck,
       badge: upcomingSessionsCount > 0 ? upcomingSessionsCount : null
     },
+    { label: 'Peer Chat', to: '/chat', icon: MessageSquare },
     { label: 'Availability', to: '/availability', icon: Clock }
   ];
 

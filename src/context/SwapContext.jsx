@@ -3,6 +3,7 @@ import { matchService } from '../services/matchService';
 import { requestService } from '../services/requestService';
 import { sessionService } from '../services/sessionService';
 import { skillService } from '../services/skillService';
+import { socketService } from '../services/socketService';
 import { INITIAL_ACTIVITY } from '../data/mockData';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
@@ -114,17 +115,79 @@ export function SwapProvider({ children }) {
     }
   };
 
+  // Connect Socket.IO for authenticated user and listen for real-time request events
+  useEffect(() => {
+    if (!user) return;
+    const socket = socketService.getSocket(user.id || user._id);
+
+    const cleanupReceived = socketService.onRequestReceived((rawReq) => {
+      const norm = requestService.normalizeRequest(rawReq, 'received');
+      if (norm) {
+        setRequests((prev) => {
+          if (prev.some((r) => r.id === norm.id)) return prev;
+          return [norm, ...prev];
+        });
+        addToast({
+          title: 'New Swap Request Received 🤝',
+          description: `${norm.senderName} sent you a skill swap request!`,
+          variant: 'info'
+        });
+      }
+    });
+
+    const cleanupAccepted = socketService.onRequestAccepted(({ request: rawReq, session: rawSession }) => {
+      const normReq = requestService.normalizeRequest(rawReq, 'sent');
+      if (normReq) {
+        setRequests((prev) =>
+          prev.map((r) => (r.id === normReq.id ? normReq : r))
+        );
+      }
+      if (rawSession) {
+        const normSess = sessionService.normalizeSession(rawSession, user);
+        setSessions((prev) => {
+          if (prev.some((s) => s.id === normSess.id)) return prev;
+          return [normSess, ...prev];
+        });
+      }
+      addToast({
+        title: 'Swap Request Accepted! 🎉',
+        description: `${normReq?.receiverName || 'Your partner'} accepted your swap request. A new session is scheduled!`,
+        variant: 'success'
+      });
+    });
+
+    return () => {
+      cleanupReceived();
+      cleanupAccepted();
+    };
+  }, [user, addToast]);
+
   // Accept a swap request
   const acceptSwapRequest = async (requestId) => {
     try {
-      const updatedReq = await requestService.acceptRequest(requestId);
+      const res = await requestService.acceptRequest(requestId);
+      const updatedReq = res.request || res;
+      let rawSession = res.session;
+
       setRequests((prev) =>
         prev.map((r) => (r.id === requestId ? updatedReq : r))
       );
 
-      // Create scheduled session automatically
-      const newSession = await sessionService.createSessionFromRequest(updatedReq);
-      setSessions((prev) => [newSession, ...prev]);
+      if (!rawSession) {
+        try {
+          rawSession = await sessionService.createSessionFromRequest(updatedReq);
+        } catch (e) {
+          console.warn('Session creation fallback:', e);
+        }
+      }
+
+      if (rawSession) {
+        const newSession = sessionService.normalizeSession(rawSession, user);
+        setSessions((prev) => {
+          if (prev.some((s) => s.id === newSession.id)) return prev;
+          return [newSession, ...prev];
+        });
+      }
 
       const partner = updatedReq.direction === 'received' ? updatedReq.senderName : updatedReq.receiverName;
       const actItem = {

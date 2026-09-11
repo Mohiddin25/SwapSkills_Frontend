@@ -20,6 +20,7 @@ import { SessionsPage } from './pages/SessionsPage';
 import { AvailabilityPage } from './pages/AvailabilityPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { SettingsPage } from './pages/SettingsPage';
+import { ChatPage } from './pages/ChatPage';
 
 export default function App() {
   return (
@@ -40,6 +41,7 @@ export default function App() {
                 <Route path="/matches" element={<FindMatchesPage />} />
                 <Route path="/requests" element={<RequestsPage />} />
                 <Route path="/sessions" element={<SessionsPage />} />
+                <Route path="/chat" element={<ChatPage />} />
                 <Route path="/availability" element={<AvailabilityPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/settings" element={<SettingsPage />} />
