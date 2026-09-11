@@ -24,17 +24,30 @@ export function SwapProvider({ children }) {
   const loadData = useCallback(async () => {
     try {
       setIsLoadingMatches(true);
-      const [allMatches, allRequests, allSessions, trending] = await Promise.all([
-        matchService.getMatches({}, user),
-        requestService.getRequests(),
-        sessionService.getSessions(),
-        skillService.getTrendingSkills()
-      ]);
+      const hasToken = !!(localStorage.getItem('skillswap_token') || localStorage.getItem('token'));
+      const isAuthenticated = !!user || hasToken;
 
-      setMatches(allMatches);
-      setRequests(allRequests);
-      setSessions(allSessions);
-      setTrendingSkills(trending);
+      const trendingPromise = skillService.getTrendingSkills();
+
+      if (isAuthenticated) {
+        const [allMatches, allRequests, allSessions, trending] = await Promise.all([
+          matchService.getMatches({}, user),
+          requestService.getRequests(),
+          sessionService.getSessions(),
+          trendingPromise
+        ]);
+
+        setMatches(allMatches);
+        setRequests(allRequests);
+        setSessions(allSessions);
+        setTrendingSkills(trending);
+      } else {
+        const trending = await trendingPromise;
+        setMatches([]);
+        setRequests([]);
+        setSessions([]);
+        setTrendingSkills(trending);
+      }
     } catch (err) {
       console.error('Failed to load swap platform data', err);
     } finally {

@@ -56,7 +56,15 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
-    const message = error.response?.data?.message || error.message || 'An unexpected server error occurred';
+    let message = error.response?.data?.message || error.message || 'An unexpected server error occurred';
+    if (error.response?.data?.errors && Array.isArray(error.response.data.errors)) {
+      const fieldDetails = error.response.data.errors
+        .map((e) => (typeof e === 'object' && e.message ? `${e.field || 'Error'}: ${e.message}` : e))
+        .join('; ');
+      if (fieldDetails) {
+        message = `${message} (${fieldDetails})`;
+      }
+    }
     return Promise.reject(new Error(message));
   }
 );

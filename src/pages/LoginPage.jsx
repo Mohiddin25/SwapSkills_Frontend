@@ -35,7 +35,7 @@ export function LoginPage() {
   const handleDemoLogin = async () => {
     setIsSubmitting(true);
     try {
-      await login('alex.johnson@campus.edu', 'demo123');
+      await login('studenta@campus.edu', 'Password123!');
       navigate('/dashboard');
     } catch (err) {
       setError(err.message);
