@@ -95,12 +95,6 @@ export function ChatPage() {
     setText('');
 
     try {
-      socketService.sendMessage({
-        conversationId: activeConv._id,
-        senderId: user.id || user._id,
-        text: messageText
-      });
-
       const sentMsg = await chatService.sendMessage(activeConv._id, messageText);
       if (sentMsg) {
         setMessages((prev) => {
