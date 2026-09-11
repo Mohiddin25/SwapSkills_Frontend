@@ -16,11 +16,38 @@ export function ChatPage() {
   const [isLoading, setIsLoading] = useState(true);
   const messagesEndRef = useRef(null);
 
+  const currentUserId = user?._id || user?.id;
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Load conversations on mount
+  const getSenderId = (msg) => {
+    if (!msg) return null;
+    if (typeof msg.sender === 'object' && msg.sender !== null) {
+      return msg.sender._id || msg.sender.id;
+    }
+    return msg.sender;
+  };
+
+  const isMessageFromMe = (msg) => {
+    const sId = getSenderId(msg);
+    if (!sId || !currentUserId) return false;
+    return String(sId) === String(currentUserId);
+  };
+
+  const addMessageIfNew = (newMsg) => {
+    if (!newMsg) return;
+    const newId = newMsg._id || newMsg.id;
+    setMessages((prev) => {
+      if (newId && prev.some((m) => String(m._id || m.id) === String(newId))) {
+        return prev;
+      }
+      return [...prev, newMsg];
+    });
+  };
+
+  // Load conversations on mount & initialize socket connection
   useEffect(() => {
     let isMounted = true;
     const loadConvs = async () => {
@@ -28,8 +55,8 @@ export function ChatPage() {
         setIsLoading(true);
         const data = await chatService.getConversations();
         if (isMounted) {
-          setConversations(data);
-          if (data.length > 0 && !activeConv) {
+          setConversations(data || []);
+          if (data && data.length > 0 && !activeConv) {
             setActiveConv(data[0]);
           }
         }
@@ -39,25 +66,28 @@ export function ChatPage() {
         if (isMounted) setIsLoading(false);
       }
     };
-    if (user) {
+
+    if (user && currentUserId) {
       loadConvs();
-      socketService.getSocket(user.id || user._id);
+      socketService.getSocket(currentUserId);
     }
     return () => {
       isMounted = false;
     };
-  }, [user]);
+  }, [currentUserId]);
 
   // Load messages and listen for Socket.IO real-time messages when active conversation changes
   useEffect(() => {
     if (!activeConv || !user) return;
 
     let isMounted = true;
+    const activeConvId = activeConv._id || activeConv.id;
+
     const loadMsgs = async () => {
       try {
-        const msgs = await chatService.getMessages(activeConv._id);
+        const msgs = await chatService.getMessages(activeConvId);
         if (isMounted) {
-          setMessages(msgs);
+          setMessages(msgs || []);
         }
       } catch (err) {
         console.error('Failed to load messages', err);
@@ -65,23 +95,27 @@ export function ChatPage() {
     };
 
     loadMsgs();
-    socketService.joinConversation(activeConv._id);
+    socketService.joinConversation(activeConvId);
 
-    const cleanup = socketService.onMessageReceive((newMsg) => {
-      const convId = newMsg.conversation?._id || newMsg.conversation;
-      if (convId === activeConv._id) {
-        setMessages((prev) => {
-          if (prev.some((m) => m._id === newMsg._id)) return prev;
-          return [...prev, newMsg];
-        });
+    const handleReceiveMessage = (newMsg) => {
+      if (!newMsg) return;
+      const msgConvId =
+        typeof newMsg.conversation === 'object' && newMsg.conversation !== null
+          ? newMsg.conversation._id || newMsg.conversation.id
+          : newMsg.conversation;
+
+      if (String(msgConvId) === String(activeConvId)) {
+        addMessageIfNew(newMsg);
       }
-    });
+    };
+
+    const cleanup = socketService.onMessageReceive(handleReceiveMessage);
 
     return () => {
       isMounted = false;
       cleanup();
     };
-  }, [activeConv, user]);
+  }, [activeConv?._id, activeConv?.id, currentUserId]);
 
   useEffect(() => {
     scrollToBottom();
@@ -92,15 +126,13 @@ export function ChatPage() {
     if (!text.trim() || !activeConv || !user) return;
 
     const messageText = text.trim();
+    const activeConvId = activeConv._id || activeConv.id;
     setText('');
 
     try {
-      const sentMsg = await chatService.sendMessage(activeConv._id, messageText);
+      const sentMsg = await chatService.sendMessage(activeConvId, messageText);
       if (sentMsg) {
-        setMessages((prev) => {
-          if (prev.some((m) => m._id === sentMsg._id)) return prev;
-          return [...prev, sentMsg];
-        });
+        addMessageIfNew(sentMsg);
       }
     } catch (err) {
       console.error('Error sending message:', err);
@@ -109,9 +141,10 @@ export function ChatPage() {
 
   const getPartner = (conv) => {
     if (!conv?.participants || !user) return null;
+    const myId = String(currentUserId);
     return (
       conv.participants.find(
-        (p) => (p._id || p.id) !== (user.id || user._id)
+        (p) => String(p._id || p.id) !== myId
       ) || conv.participants[0]
     );
   };
@@ -146,10 +179,10 @@ export function ChatPage() {
             ) : (
               conversations.map((conv) => {
                 const partner = getPartner(conv);
-                const isSelected = activeConv?._id === conv._id;
+                const isSelected = String(activeConv?._id || activeConv?.id) === String(conv._id || conv.id);
                 return (
                   <button
-                    key={conv._id}
+                    key={conv._id || conv.id}
                     type="button"
                     onClick={() => setActiveConv(conv)}
                     className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors cursor-pointer ${
@@ -212,8 +245,7 @@ export function ChatPage() {
                   </div>
                 ) : (
                   messages.map((msg) => {
-                    const isMine =
-                      (msg.sender?._id || msg.sender) === (user.id || user._id);
+                    const isMine = isMessageFromMe(msg);
                     return (
                       <div
                         key={msg._id || msg.id || Math.random()}
@@ -284,3 +316,4 @@ export function ChatPage() {
     </div>
   );
 }
+
