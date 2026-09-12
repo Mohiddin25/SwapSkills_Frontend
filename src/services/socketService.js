@@ -78,7 +78,24 @@ export const socketService = {
     };
   },
 
+  onConversationDeleted(callback) {
+    if (!socket) return () => {};
+    socket.on('conversation:deleted', callback);
+    return () => {
+      socket.off('conversation:deleted', callback);
+    };
+  },
+
+  onMessageDeleted(callback) {
+    if (!socket) return () => {};
+    socket.on('message:deleted', callback);
+    return () => {
+      socket.off('message:deleted', callback);
+    };
+  },
+
   disconnect() {
+
     if (socket) {
       socket.disconnect();
       socket = null;

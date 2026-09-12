@@ -28,5 +28,24 @@ export const chatService = {
     } catch (err) {
       throw err;
     }
+  },
+
+  async deleteConversation(conversationId) {
+    try {
+      const res = await api.delete(`/chat/conversations/${conversationId}`);
+      return res.data;
+    } catch (err) {
+      throw err;
+    }
+  },
+
+  async deleteMessage(conversationId, messageId) {
+    try {
+      const res = await api.delete(`/chat/conversations/${conversationId}/messages/${messageId}`);
+      return res.data;
+    } catch (err) {
+      throw err;
+    }
   }
 };
+

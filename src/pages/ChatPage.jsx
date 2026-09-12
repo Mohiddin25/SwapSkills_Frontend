@@ -5,7 +5,7 @@ import { Button } from '../components/common/Button';
 import { chatService } from '../services/chatService';
 import { socketService } from '../services/socketService';
 import { useAuth } from '../context/AuthContext';
-import { MessageSquare, Send, User, Sparkles, CheckCircle2 } from 'lucide-react';
+import { MessageSquare, Send, User, Sparkles, CheckCircle2, Trash2, AlertTriangle } from 'lucide-react';
 
 export function ChatPage() {
   const { user } = useAuth();
@@ -14,6 +14,7 @@ export function ChatPage() {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const messagesEndRef = useRef(null);
 
   const currentUserId = user?._id || user?.id;
@@ -109,13 +110,34 @@ export function ChatPage() {
       }
     };
 
-    const cleanup = socketService.onMessageReceive(handleReceiveMessage);
+    const handleMessageDeleted = (data) => {
+      if (data && String(data.conversationId) === String(activeConvId)) {
+        setMessages((prev) => prev.filter((m) => String(m._id || m.id) !== String(data.messageId)));
+      }
+    };
+
+    const handleConversationDeleted = (data) => {
+      if (data) {
+        setConversations((prev) => prev.filter((c) => String(c._id || c.id) !== String(data.conversationId)));
+        if (String(activeConvId) === String(data.conversationId)) {
+          setActiveConv(null);
+          setMessages([]);
+        }
+      }
+    };
+
+    const cleanupMsg = socketService.onMessageReceive(handleReceiveMessage);
+    const cleanupDelMsg = socketService.onMessageDeleted(handleMessageDeleted);
+    const cleanupDelConv = socketService.onConversationDeleted(handleConversationDeleted);
 
     return () => {
       isMounted = false;
-      cleanup();
+      cleanupMsg();
+      cleanupDelMsg();
+      cleanupDelConv();
     };
   }, [activeConv?._id, activeConv?.id, currentUserId]);
+
 
   useEffect(() => {
     scrollToBottom();
@@ -136,6 +158,38 @@ export function ChatPage() {
       }
     } catch (err) {
       console.error('Error sending message:', err);
+    }
+  };
+
+  const handleDeleteConversation = async () => {
+    if (!activeConv) return;
+    const activeConvId = activeConv._id || activeConv.id;
+    try {
+      await chatService.deleteConversation(activeConvId);
+      const updated = conversations.filter(
+        (c) => String(c._id || c.id) !== String(activeConvId)
+      );
+      setConversations(updated);
+      if (updated.length > 0) {
+        setActiveConv(updated[0]);
+      } else {
+        setActiveConv(null);
+        setMessages([]);
+      }
+      setShowDeleteConfirm(false);
+    } catch (err) {
+      console.error('Failed to delete conversation:', err);
+    }
+  };
+
+  const handleDeleteMessage = async (messageId) => {
+    if (!activeConv || !messageId) return;
+    const activeConvId = activeConv._id || activeConv.id;
+    try {
+      await chatService.deleteMessage(activeConvId, messageId);
+      setMessages((prev) => prev.filter((m) => String(m._id || m.id) !== String(messageId)));
+    } catch (err) {
+      console.error('Failed to delete message:', err);
     }
   };
 
@@ -184,7 +238,10 @@ export function ChatPage() {
                   <button
                     key={conv._id || conv.id}
                     type="button"
-                    onClick={() => setActiveConv(conv)}
+                    onClick={() => {
+                      setActiveConv(conv);
+                      setShowDeleteConfirm(false);
+                    }}
                     className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors cursor-pointer ${
                       isSelected
                         ? 'bg-[#1B365D] text-white'
@@ -212,7 +269,7 @@ export function ChatPage() {
         </div>
 
         {/* Message Thread Viewport */}
-        <div className="md:col-span-8 flex flex-col bg-white">
+        <div className="md:col-span-8 flex flex-col bg-white relative">
           {activeConv ? (
             <>
               {/* Thread Header */}
@@ -228,9 +285,19 @@ export function ChatPage() {
                     </p>
                   </div>
                 </div>
-                <div className="inline-flex items-center gap-1.5 text-[11px] text-[#1B365D] bg-[#F0F4F8] px-2.5 py-1 rounded-full font-medium">
-                  <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse" />
-                  <span>Real-Time Socket Active</span>
+                <div className="flex items-center gap-3">
+                  <div className="inline-flex items-center gap-1.5 text-[11px] text-[#1B365D] bg-[#F0F4F8] px-2.5 py-1 rounded-full font-medium">
+                    <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse" />
+                    <span>Real-Time Socket Active</span>
+                  </div>
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    title="Delete Conversation"
+                    className="inline-flex items-center gap-1 text-xs text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 px-2.5 py-1 rounded-lg font-medium transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete Chat</span>
+                  </button>
                 </div>
               </div>
 
@@ -246,19 +313,31 @@ export function ChatPage() {
                 ) : (
                   messages.map((msg) => {
                     const isMine = isMessageFromMe(msg);
+                    const msgId = msg._id || msg.id;
                     return (
                       <div
-                        key={msg._id || msg.id || Math.random()}
+                        key={msgId || Math.random()}
                         className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}
                       >
                         <div
-                          className={`max-w-[75%] rounded-xl px-4 py-2.5 text-xs leading-relaxed shadow-2xs ${
+                          className={`max-w-[75%] rounded-xl px-4 py-2.5 text-xs leading-relaxed shadow-2xs relative group ${
                             isMine
                               ? 'bg-[#1B365D] text-white rounded-br-none'
                               : 'bg-[#F0F4F8] text-[#111625] rounded-bl-none border border-[#E4E7EC]'
                           }`}
                         >
-                          <p>{msg.text}</p>
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="break-words">{msg.text}</p>
+                            {isMine && msgId && (
+                              <button
+                                onClick={() => handleDeleteMessage(msgId)}
+                                title="Delete message"
+                                className="text-white/60 hover:text-white transition-colors p-0.5 rounded cursor-pointer shrink-0"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
                           <div
                             className={`text-[9px] mt-1 text-right ${
                               isMine ? 'text-white/70' : 'text-[#5C6479]'
@@ -311,9 +390,42 @@ export function ChatPage() {
               </p>
             </div>
           )}
+
+          {/* Delete Conversation Confirmation Modal */}
+          {showDeleteConfirm && (
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+              <div className="bg-white border border-[#E4E7EC] rounded-xl p-6 max-w-sm w-full text-center shadow-lg space-y-4">
+                <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-base font-bold text-[#111625]">Delete Chat Thread?</h4>
+                  <p className="text-xs text-[#5C6479]">
+                    Are you sure you want to delete this chat conversation and all its messages? This action cannot be undone.
+                  </p>
+                </div>
+                <div className="flex gap-2 justify-center pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowDeleteConfirm(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <button
+                    onClick={handleDeleteConversation}
+                    className="bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-lg text-xs transition-colors cursor-pointer"
+                  >
+                    Yes, Delete Chat
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
+
 
