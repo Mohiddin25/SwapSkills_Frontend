@@ -183,11 +183,21 @@ export function SwapProvider({ children }) {
 
       if (rawSession) {
         const newSession = sessionService.normalizeSession(rawSession, user);
-        setSessions((prev) => {
-          if (prev.some((s) => s.id === newSession.id)) return prev;
-          return [newSession, ...prev];
-        });
+        if (newSession) {
+          setSessions((prev) => {
+            if (prev.some((s) => s.id === newSession.id)) return prev;
+            return [newSession, ...prev];
+          });
+        }
       }
+
+      // Refetch latest sessions to guarantee state synchronization
+      sessionService.getSessions().then((fetchedSessions) => {
+        if (fetchedSessions && Array.isArray(fetchedSessions)) {
+          setSessions(fetchedSessions);
+        }
+      }).catch((e) => console.warn('Refetch sessions error:', e));
+
 
       const partner = updatedReq.direction === 'received' ? updatedReq.senderName : updatedReq.receiverName;
       const actItem = {

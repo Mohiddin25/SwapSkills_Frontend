@@ -95,7 +95,7 @@ export const requestService = {
   async acceptRequest(requestId) {
     try {
       const res = await api.patch(`/requests/${requestId}/accept`);
-      const payload = res.data || res;
+      const payload = res.data?.data || res.data || res;
       const rawReq = payload.request || payload;
       const rawSession = payload.session;
       return {
@@ -106,6 +106,7 @@ export const requestService = {
       throw err;
     }
   },
+
 
   async declineRequest(requestId) {
     try {

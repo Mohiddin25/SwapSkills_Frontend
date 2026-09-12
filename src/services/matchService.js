@@ -1,5 +1,31 @@
 import api from './api';
 
+const extractSkillInfo = (item, defaultLevel = 'Intermediate') => {
+
+  if (!item) return null;
+  let name = '';
+  let level = item.skillLevel || item.desiredLevel || defaultLevel;
+  let category = 'Academic';
+
+  if (typeof item === 'string') {
+    name = item;
+  } else if (item.skill) {
+    if (typeof item.skill === 'string') {
+      name = item.skill;
+    } else if (typeof item.skill === 'object') {
+      name = item.skill.name || item.skill.normalizedName || item.skill.title || '';
+      if (item.skill.category) category = item.skill.category;
+    }
+  } else if (item.name) {
+    name = item.name;
+    if (item.category) category = item.category;
+  }
+
+  if (!name || name.trim().toLowerCase() === 'skill') return null;
+
+  return { name: name.trim(), level, category };
+};
+
 export const matchService = {
   async getMatches(filters = {}, currentUser = null) {
     try {
@@ -14,18 +40,25 @@ export const matchService = {
         }
       });
 
-      const backendMatches = res.data?.matches || [];
+      const backendMatches = res.matches || res.data?.matches || (Array.isArray(res) ? res : []);
 
       // Format backend candidate response into UI student card structure
       return backendMatches.map((m) => {
-        const c = m.candidate || {};
+        const c = m.candidate || m.user || m || {};
+        const teachSkills = (c.skillsToTeach || c.teachSkills || c.canTeach || [])
+          .map((s) => extractSkillInfo(s, 'Intermediate'))
+          .filter(Boolean);
+        const learnSkills = (c.skillsToLearn || c.learnSkills || c.wantsToLearn || [])
+          .map((s) => extractSkillInfo(s, 'Beginner'))
+          .filter(Boolean);
+
         return {
           id: c._id || c.id,
-          name: c.name,
-          email: c.email,
+          name: c.name || 'Peer Learning Partner',
+          email: c.email || '',
           avatar: c.profileImage || `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.name || 'Student'}`,
-          department: c.department,
-          year: c.year,
+          department: c.department || 'General',
+          year: c.year || 'Student',
           campus: c.campus || 'Main Campus',
           rating: c.rating || 5.0,
           totalRatings: c.totalRatings || 0,
@@ -34,24 +67,16 @@ export const matchService = {
           sessionsCompleted: c.sessionsCompleted || 0,
           studentsHelped: c.teachingSessionsCompleted || 0,
           bio: c.bio || '',
-          compatibility: m.matchScore,
+          compatibility: m.matchScore || 85,
           breakdown: {
-            skillCompatibility: m.skillScore,
-            availabilityOverlap: m.availabilityScore,
-            skillLevelCompatibility: m.levelScore,
-            locationProximity: m.locationScore
+            skillCompatibility: m.skillScore || 60,
+            availabilityOverlap: m.availabilityScore || 25,
+            skillLevelCompatibility: m.levelScore || 15,
+            locationProximity: m.locationScore || 10
           },
-          explanation: `High score: ${m.matchScore}% compatible skills and schedules.`,
-          skillsTeach: (c.skillsToTeach || []).map((s) => ({
-            name: s.skill?.name || 'Skill',
-            level: s.skillLevel || 'Intermediate',
-            category: s.skill?.category || 'Academic'
-          })),
-          skillsLearn: (c.skillsToLearn || []).map((s) => ({
-            name: s.skill?.name || 'Skill',
-            level: s.desiredLevel || 'Beginner',
-            category: s.skill?.category || 'Academic'
-          })),
+          explanation: m.matchScore ? `High score: ${m.matchScore}% compatible skills and schedules.` : 'Strong peer skill swap compatibility.',
+          skillsTeach: teachSkills,
+          skillsLearn: learnSkills,
           sharedAvailability: (m.commonAvailability || []).map((slot) => ({
             day: slot.dayOfWeek,
             time: `${slot.startTime}–${slot.endTime}`
@@ -63,6 +88,7 @@ export const matchService = {
       return [];
     }
   },
+
 
   async getMatchById(id, currentUser = null) {
     const matches = await matchService.getMatches({}, currentUser);

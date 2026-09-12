@@ -48,9 +48,13 @@ export function MatchCard({
               Can teach
             </span>
             <div className="flex flex-wrap gap-1.5">
-              {skillsTeach.slice(0, 3).map((skill, idx) => (
-                <SkillTag key={idx} skill={skill} type="teach" size="sm" />
-              ))}
+              {skillsTeach && skillsTeach.length > 0 ? (
+                skillsTeach.slice(0, 3).map((skill, idx) => (
+                  <SkillTag key={idx} skill={skill} type="teach" size="sm" />
+                ))
+              ) : (
+                <span className="text-xs text-[#5C6479] italic">No skills listed</span>
+              )}
             </div>
           </div>
 
@@ -60,12 +64,17 @@ export function MatchCard({
               Wants to learn
             </span>
             <div className="flex flex-wrap gap-1.5">
-              {skillsLearn.slice(0, 3).map((skill, idx) => (
-                <SkillTag key={idx} skill={skill} type="learn" size="sm" />
-              ))}
+              {skillsLearn && skillsLearn.length > 0 ? (
+                skillsLearn.slice(0, 3).map((skill, idx) => (
+                  <SkillTag key={idx} skill={skill} type="learn" size="sm" />
+                ))
+              ) : (
+                <span className="text-xs text-[#5C6479] italic">No skills listed</span>
+              )}
             </div>
           </div>
         </div>
+
 
         {/* Shared availability */}
         {sharedAvailability && (
