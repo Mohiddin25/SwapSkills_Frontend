@@ -5,31 +5,55 @@ const STORAGE_KEY_TOKEN = 'skillswap_token';
 
 export const normalizeUserData = (u) => {
   if (!u) return null;
+  const rawTeach = u.skillsToTeach?.length ? u.skillsToTeach : (u.skillsTeach || []);
+  const rawLearn = u.skillsToLearn?.length ? u.skillsToLearn : (u.skillsLearn || []);
+
+  const skillsTeach = rawTeach.map((s) => {
+    if (typeof s === 'string') {
+      return { id: s, name: s, category: 'Academic', level: 'Intermediate' };
+    }
+    const name = s.skill?.name || s.name || 'Skill';
+    const category = s.skill?.category || s.category || 'Academic';
+    const level = s.skillLevel || s.level || 'Intermediate';
+    const id = s.skill?._id || s.skill || s._id || s.id || name;
+    return { id, name, category, level };
+  });
+
+  const skillsLearn = rawLearn.map((s) => {
+    if (typeof s === 'string') {
+      return { id: s, name: s, category: 'Academic', level: 'Beginner' };
+    }
+    const name = s.skill?.name || s.name || 'Skill';
+    const category = s.skill?.category || s.category || 'Academic';
+    const level = s.desiredLevel || s.level || 'Beginner';
+    const id = s.skill?._id || s.skill || s._id || s.id || name;
+    return { id, name, category, level };
+  });
+
+  const availability = (u.availability || []).map((a) => {
+    const day = a.dayOfWeek || a.day || 'Monday';
+    const time = a.time || (a.startTime && a.endTime ? `${a.startTime}–${a.endTime}` : '5:00 PM – 7:00 PM');
+    return {
+      id: a._id || a.id || 'av-' + Math.random().toString(36).substring(2, 9),
+      day,
+      time,
+      start: a.startTime || a.start || '17:00',
+      end: a.endTime || a.end || '19:00'
+    };
+  });
+
   return {
     ...u,
     id: u._id || u.id,
-    credits: u.skillCredits !== undefined ? u.skillCredits : u.credits || 5,
+    credits: u.skillCredits !== undefined ? u.skillCredits : (u.credits !== undefined ? u.credits : 5),
     contributorLevel: typeof u.contributorLevel === 'number'
       ? `Level ${u.contributorLevel} Contributor`
       : u.contributorLevel || 'Level 1 Contributor',
-    studentsHelped: u.teachingSessionsCompleted !== undefined ? u.teachingSessionsCompleted : u.studentsHelped || 0,
-    skillsTeach: (u.skillsToTeach || []).map((s) => ({
-      id: s.skill?._id || s.skill || s._id,
-      name: s.skill?.name || s.name || 'Skill',
-      category: s.skill?.category || s.category || 'Academic',
-      level: s.skillLevel || s.level || 'Intermediate'
-    })),
-    skillsLearn: (u.skillsToLearn || []).map((s) => ({
-      id: s.skill?._id || s.skill || s._id,
-      name: s.skill?.name || s.name || 'Skill',
-      category: s.skill?.category || s.category || 'Academic',
-      level: s.desiredLevel || s.level || 'Beginner'
-    })),
-    availability: (u.availability || []).map((a) => ({
-      id: a._id || a.id,
-      day: a.dayOfWeek || a.day,
-      time: a.startTime && a.endTime ? `${a.startTime}–${a.endTime}` : a.time
-    }))
+    studentsHelped: u.teachingSessionsCompleted !== undefined ? u.teachingSessionsCompleted : (u.studentsHelped || 0),
+    sessionsCompleted: u.sessionsCompleted !== undefined ? u.sessionsCompleted : 0,
+    skillsTeach,
+    skillsLearn,
+    availability
   };
 };
 

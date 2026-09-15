@@ -20,23 +20,43 @@ export function SwapRequestModal({
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const extractSkillNames = (skillsArr, fallbackDefault = []) => {
+    if (!skillsArr || !Array.isArray(skillsArr) || skillsArr.length === 0) {
+      return fallbackDefault;
+    }
+    const names = skillsArr.map((s) => {
+      if (typeof s === 'string') return s;
+      return s?.name || s?.skill?.name || s?.title || '';
+    }).filter(Boolean);
+    return names.length > 0 ? Array.from(new Set(names)) : fallbackDefault;
+  };
+
+  const userTeachSkills = extractSkillNames(
+    currentUser?.skillsTeach?.length ? currentUser.skillsTeach : currentUser?.skillsToTeach,
+    ['Python', 'Java', 'C++', 'React', 'UI/UX Design', 'System Design']
+  );
+
+  const candidateTeachSkills = extractSkillNames(
+    match?.skillsTeach?.length ? match.skillsTeach : match?.skillsToTeach,
+    ['UI/UX Design', 'Figma', 'React', 'Python', 'C++', 'Data Analysis']
+  );
+
   useEffect(() => {
     if (match && currentUser) {
-      // Intelligently prefill based on common overlap
       const defaultTeach = match.commonTeachLearn?.youTeach ||
-        currentUser.skillsTeach?.[0]?.name ||
+        userTeachSkills[0] ||
         'Python';
 
       const defaultWant = match.commonTeachLearn?.theyTeach ||
-        match.skillsTeach?.[0]?.name ||
+        candidateTeachSkills[0] ||
         'UI/UX Design';
 
-      setYouTeach(defaultTeach);
-      setYouWant(defaultWant);
+      setYouTeach((prev) => prev || defaultTeach);
+      setYouWant((prev) => prev || defaultWant);
       setSuggestedTime(match.sharedAvailability || 'Saturday · 4:00–5:00 PM');
       setMessage(`Hi ${match.name.split(' ')[0]}, I would love to schedule a regular peer session to exchange ${defaultTeach} and ${defaultWant}.`);
     }
-  }, [match, currentUser]);
+  }, [match, currentUser, userTeachSkills, candidateTeachSkills]);
 
   if (!match) return null;
 
@@ -46,8 +66,8 @@ export function SwapRequestModal({
     try {
       await onSendRequest({
         candidate: match,
-        skillYouTeach: youTeach,
-        skillTheyTeach: youWant,
+        skillYouTeach: youTeach || userTeachSkills[0],
+        skillTheyTeach: youWant || candidateTeachSkills[0],
         suggestedTime,
         message
       });
@@ -58,9 +78,6 @@ export function SwapRequestModal({
       setIsSubmitting(false);
     }
   };
-
-  const userTeachSkills = (currentUser?.skillsTeach || []).map((s) => (typeof s === 'string' ? s : s.name));
-  const candidateTeachSkills = (match?.skillsTeach || []).map((s) => (typeof s === 'string' ? s : s.name));
 
   return (
     <Modal

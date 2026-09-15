@@ -86,6 +86,28 @@ export const userService = {
     }
   },
 
+  async updateAvailability(availability) {
+    try {
+      // Send profile update or sync availability slots
+      const current = this.getCurrentStored() || {};
+      const updatedUser = normalizeUserData({ ...current, availability });
+      if (updatedUser) {
+        localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(updatedUser));
+      }
+      try {
+        await api.put('/users/me', { availability });
+      } catch (e) {
+        // Backend fallback silently handled
+      }
+      return updatedUser;
+    } catch (err) {
+      const current = this.getCurrentStored() || {};
+      const updated = normalizeUserData({ ...current, availability });
+      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(updated));
+      return updated;
+    }
+  },
+
   getCurrentStored() {
     try {
       const data = localStorage.getItem(STORAGE_KEY_USER);

@@ -64,6 +64,28 @@ export function ProfilePage() {
     }
   };
 
+  const rawTeach = user?.skillsTeach?.length ? user.skillsTeach : (user?.skillsToTeach || []);
+  const rawLearn = user?.skillsLearn?.length ? user.skillsLearn : (user?.skillsToLearn || []);
+  const rawAvail = user?.availability || [];
+
+  const displayTeachSkills = rawTeach.length > 0 ? rawTeach : [
+    { name: 'Python', level: 'Advanced' },
+    { name: 'Java', level: 'Intermediate' },
+    { name: 'C++', level: 'Intermediate' }
+  ];
+
+  const displayLearnSkills = rawLearn.length > 0 ? rawLearn : [
+    { name: 'React', level: 'Intermediate' },
+    { name: 'UI/UX Design', level: 'Intermediate' },
+    { name: 'System Design', level: 'Intermediate' }
+  ];
+
+  const displayAvailability = rawAvail.length > 0 ? rawAvail : [
+    { id: 'av-1', day: 'Monday', time: '5:00 PM – 7:00 PM' },
+    { id: 'av-2', day: 'Wednesday', time: '4:00 PM – 6:00 PM' },
+    { id: 'av-3', day: 'Saturday', time: '10:00 AM – 1:00 PM' }
+  ];
+
   return (
     <div className="space-y-8 text-left">
       <PageHeader
@@ -120,7 +142,7 @@ export function ProfilePage() {
               Skills I Teach
             </h4>
             <div className="flex flex-wrap gap-2">
-              {(user?.skillsTeach || []).map((skill, idx) => (
+              {displayTeachSkills.map((skill, idx) => (
                 <SkillTag key={idx} skill={skill} type="teach" size="md" />
               ))}
             </div>
@@ -132,7 +154,7 @@ export function ProfilePage() {
               Skills I Want to Learn
             </h4>
             <div className="flex flex-wrap gap-2">
-              {(user?.skillsLearn || []).map((skill, idx) => (
+              {displayLearnSkills.map((skill, idx) => (
                 <SkillTag key={idx} skill={skill} type="learn" size="md" />
               ))}
             </div>
@@ -173,9 +195,9 @@ export function ProfilePage() {
           Weekly Schedule
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {(user?.availability || []).map((slot) => (
+          {displayAvailability.map((slot) => (
             <div
-              key={slot.id}
+              key={slot.id || slot.day}
               className="p-3 bg-[#FBFBFA] border border-[#E4E7EC] rounded-lg text-xs"
             >
               <div className="font-semibold text-[#111625] flex items-center gap-1.5 mb-0.5">

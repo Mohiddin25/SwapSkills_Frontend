@@ -1,5 +1,16 @@
 import api from './api';
 
+const getSkillText = (skillsArray, directField, fallbackText) => {
+  if (directField && directField !== 'Skill Offered' && directField !== 'Skill Requested') {
+    return directField;
+  }
+  if (Array.isArray(skillsArray) && skillsArray.length > 0) {
+    const names = skillsArray.map(s => (typeof s === 'string' ? s : s?.name || s?.title || '')).filter(Boolean);
+    if (names.length > 0) return names.join(', ');
+  }
+  return fallbackText;
+};
+
 export const requestService = {
   async getRequests() {
     try {
@@ -8,45 +19,11 @@ export const requestService = {
         api.get('/requests/sent')
       ]);
 
-      const received = (recRes.data || []).map((r) => ({
-        id: r._id,
-        senderId: r.sender?._id || r.sender,
-        senderName: r.sender?.name || 'Student',
-        senderDepartment: r.sender?.department || 'Department',
-        senderYear: r.sender?.year || 'Student',
-        receiverId: r.receiver?._id || r.receiver,
-        receiverName: r.receiver?.name || 'Me',
-        receiverDepartment: r.receiver?.department || '',
-        receiverYear: r.receiver?.year || '',
-        skillYouTeach: (r.skillsOffered || []).map(s => s.name || s).join(', ') || 'Skill Offered',
-        skillTheyTeach: (r.skillsRequested || []).map(s => s.name || s).join(', ') || 'Skill Requested',
-        compatibility: r.matchScore || 85,
-        suggestedTime: (r.proposedTimeSlots || []).map(s => `${s.dayOfWeek} ${s.startTime}-${s.endTime}`).join(', ') || 'Campus Hours',
-        message: r.message || '',
-        status: r.status === 'accepted' ? 'Accepted' : r.status === 'rejected' ? 'Declined' : r.status === 'pending' ? 'Pending' : r.status,
-        createdAt: r.createdAt,
-        direction: 'received'
-      }));
+      const rawRec = Array.isArray(recRes.data) ? recRes.data : recRes.data?.data || [];
+      const rawSent = Array.isArray(sentRes.data) ? sentRes.data : sentRes.data?.data || [];
 
-      const sent = (sentRes.data || []).map((r) => ({
-        id: r._id,
-        senderId: r.sender?._id || r.sender,
-        senderName: r.sender?.name || 'Me',
-        senderDepartment: r.sender?.department || '',
-        senderYear: r.sender?.year || '',
-        receiverId: r.receiver?._id || r.receiver,
-        receiverName: r.receiver?.name || 'Peer',
-        receiverDepartment: r.receiver?.department || 'Department',
-        receiverYear: r.receiver?.year || 'Student',
-        skillYouTeach: (r.skillsOffered || []).map(s => s.name || s).join(', ') || 'Skill Offered',
-        skillTheyTeach: (r.skillsRequested || []).map(s => s.name || s).join(', ') || 'Skill Requested',
-        compatibility: r.matchScore || 85,
-        suggestedTime: (r.proposedTimeSlots || []).map(s => `${s.dayOfWeek} ${s.startTime}-${s.endTime}`).join(', ') || 'Campus Hours',
-        message: r.message || '',
-        status: r.status === 'accepted' ? 'Accepted' : r.status === 'rejected' ? 'Declined' : r.status === 'pending' ? 'Pending' : r.status,
-        createdAt: r.createdAt,
-        direction: 'sent'
-      }));
+      const received = rawRec.map((r) => this.normalizeRequest(r, 'received'));
+      const sent = rawSent.map((r) => this.normalizeRequest(r, 'sent'));
 
       return [...received, ...sent];
     } catch (err) {
@@ -58,22 +35,28 @@ export const requestService = {
   normalizeRequest(r, direction = 'sent') {
     if (!r) return null;
     const raw = r.data || r;
+    const senderName = raw.sender?.name || raw.senderName || (direction === 'sent' ? 'Me' : 'Student');
+    const receiverName = raw.receiver?.name || raw.receiverName || (direction === 'sent' ? 'Peer' : 'Me');
+
+    const defaultTeach = direction === 'sent' ? 'Python' : 'UI/UX Design';
+    const defaultLearn = direction === 'sent' ? 'UI/UX Design' : 'Python';
+
     return {
       id: raw._id || raw.id,
       senderId: raw.sender?._id || raw.sender,
-      senderName: raw.sender?.name || 'Peer',
-      senderDepartment: raw.sender?.department || '',
-      senderYear: raw.sender?.year || '',
+      senderName,
+      senderDepartment: raw.sender?.department || raw.senderDepartment || 'Computer Science & Engineering',
+      senderYear: raw.sender?.year || raw.senderYear || '2nd Year',
       receiverId: raw.receiver?._id || raw.receiver,
-      receiverName: raw.receiver?.name || 'Peer',
-      receiverDepartment: raw.receiver?.department || 'Department',
-      receiverYear: raw.receiver?.year || 'Student',
-      skillYouTeach: (raw.skillsOffered || []).map(s => s.name || s).join(', ') || 'Skill Offered',
-      skillTheyTeach: (raw.skillsRequested || []).map(s => s.name || s).join(', ') || 'Skill Requested',
-      compatibility: raw.matchScore || 85,
-      suggestedTime: (raw.proposedTimeSlots || []).map(s => `${s.dayOfWeek} ${s.startTime}-${s.endTime}`).join(', ') || 'Campus Hours',
+      receiverName,
+      receiverDepartment: raw.receiver?.department || raw.receiverDepartment || 'Computer Science & Engineering',
+      receiverYear: raw.receiver?.year || raw.receiverYear || '3rd Year',
+      skillYouTeach: getSkillText(raw.skillsOffered, raw.skillYouTeach, defaultTeach),
+      skillTheyTeach: getSkillText(raw.skillsRequested, raw.skillTheyTeach, defaultLearn),
+      compatibility: raw.matchScore || raw.compatibility || 85,
+      suggestedTime: (raw.proposedTimeSlots || []).map(s => `${s.dayOfWeek} ${s.startTime}-${s.endTime}`).join(', ') || raw.suggestedTime || 'Campus Hours',
       message: raw.message || '',
-      status: raw.status === 'accepted' ? 'Accepted' : raw.status === 'rejected' ? 'Declined' : raw.status === 'pending' ? 'Pending' : raw.status,
+      status: raw.status === 'accepted' ? 'Accepted' : raw.status === 'rejected' ? 'Declined' : raw.status === 'pending' ? 'Pending' : (raw.status || 'Pending'),
       createdAt: raw.createdAt || new Date().toISOString(),
       direction: raw.direction || direction
     };
@@ -86,7 +69,10 @@ export const requestService = {
         message: newReqData.message || ''
       });
       const payload = res.data || res;
-      return this.normalizeRequest(payload, 'sent');
+      const norm = this.normalizeRequest(payload, 'sent');
+      if (newReqData.skillYouTeach) norm.skillYouTeach = newReqData.skillYouTeach;
+      if (newReqData.skillTheyTeach) norm.skillTheyTeach = newReqData.skillTheyTeach;
+      return norm;
     } catch (err) {
       throw err;
     }
